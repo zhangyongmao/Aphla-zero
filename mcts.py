@@ -164,11 +164,12 @@ class MCTS(object):
         
         # 模拟下棋到游戏结束
         # 返回 leaf_value : 如果赢家与当前节点的玩家一样为1，不一样为-1 
-        winner = self.simulate(copy.deepcopy(node.board))
-        node.update(winner)
-
         end, winner = node.board.have_winer()
+
         if(not end):
+            winner = self.simulate(copy.deepcopy(node.board))
+            node.update(winner)
+
             # 算出概率 Q 来拓展
             s = node.board.state.astype("float32")
             player = node.board.current_player
@@ -188,7 +189,7 @@ class MCTS(object):
         while(True):
             move = board.moveable[np.random.randint(0, len(board.moveable), dtype='int')]
             board.move_no_copy(move)
-            if(board.have_winer()[0] or len(board.moveable) <= 2):
+            if(board.have_winer()[0] or len(board.moveable) <= 1):
                 break
         return board.have_winer()[1]
 
