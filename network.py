@@ -123,34 +123,3 @@ class DataLoader(object):
                 label_q.append(np.stack(self.output_q[i*batch_size: (i+1)*batch_size], axis=0).reshape([batch_size, -1]))
                 label_v.append(np.stack(self.output_v[i*batch_size: (i+1)*batch_size], axis=0).reshape([-1, 1]))
             return data, label_q, label_v
-
-
-model = network()
-optim = keras.optimizers.Adam(learning_rate=1e-3)
-dataloader = DataLoader()
-
-for epcho in range(10):
-    # 进行一次自我对战，收集处理数据
-    dataloader.self_play(model)
-    data, label_q, label_v = dataloader.get_data()
-    
-    for repeat in range(5):
-        # 进行训练
-        for i in range(len(data)):
-            x = data[i].astype("float32")
-            q = label_q[i].astype("float32")
-            w = label_v[i]
-
-            with tf.GradientTape() as tape:
-                Q_pred, v_pred = model(x)
-
-                loss = tf.reduce_mean(keras.losses.categorical_crossentropy(y_true=q,y_pred=Q_pred) + keras.losses.mean_squared_error(y_true=w, y_pred=v_pred))
-                print("loss = ",loss)
-
-            gards = tape.gradient(loss, model.variables)
-            optim.apply_gradients(grads_and_vars=zip(gards,model.variables))
-
-print("end")
-
-model.save_weights("C:/Users/ZYM/Desktop/aphla-zero/model")
-model.load_weights("C:/Users/ZYM/Desktop/aphla-zero/model")
