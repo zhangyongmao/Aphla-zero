@@ -14,6 +14,7 @@ class TreeNode(object):
         self.Q = 0  # 胜率
         self.U = 0  # 探索因子
         self.n = 0  # 访问次数
+
         if(p == None and self.parent != None):
             self.P = 1.0 / len(self.parent.board.moveable)
         else:
@@ -40,9 +41,29 @@ class TreeNode(object):
             
     def get_best_move(self):
         '''
-        找到当前局面的最好走法
+        找到mcts树节点对应的局面的最好走法，用于拓展mcts树的节点时
         '''
         return max(self.child.items(), key=lambda node: node[1].get_value())
+
+    def get_one_step_move(self):
+        '''
+        用来进行n次模拟后选出当前局面最终要走哪一步
+        '''
+        move_visit = [(move, child_node.n) 
+                    for move, child_node in self.child.items()]
+        move, visit = zip(* move_visit)
+        move_prob = softmax(1.0 * np.log(np.array(visit) + 1e-10))
+        result_move = np.random.choice(move, 
+                    p=0.75 * move_prob + 0.25 * np.random.dirichlet(0.3*np.ones(len(visit))))
+        
+        # 计算 Q 矩阵作为预测的走法概率label
+        move_Q = np.zeros([self.board.h, self.board.w])
+        for i in range(len(move)):
+            m = move[i]
+            h,w = self.board.move_to_hw(m)
+            move_Q[h, w] = move_prob[i]
+        # 返回最终走法, 对应的节点, 每个位置对应的走法预测概率
+        return result_move, self.child[result_move], move_Q
 
     def get_value(self, p = 5):
         '''
@@ -74,45 +95,132 @@ class MCTS(object):
         self.root = TreeNode()
 
     def self_play(self, model = None):
-        '''自我对局到最后结束，并收集数据'''
-        self.model = model
-        while(True):
-            if(self.root.board.have_winer()[0]):
-                break
-            self.one_step()
-
-        # 收集数据
-        winner = self.root.board.have_winer()[1]
+        '''自我对局到最后结束，用来收集数据训练网络'''
         states = []
         Qs = []
         winners = []
         player = []
         last_moves = []
-        node = self.root
+        self.model = model
+
+        # 进行一局模拟对战到结束
         while(True):
-            # 放在开始，最后结束的叶节点不计
-            node = node.parent
-            states.append(node.board.state)
-            player.append(node.board.current_player)
+            # 有赢家
+            if(self.root.board.have_winer()[0]):
+                break
             
-            tmp_move = np.zeros([node.board.h, node.board.w])
-            h_, w_ = node.board.move_to_hw(node.board.last_move)
-            tmp_move[h_,w_] = 1
+            # 走一步棋，返回下一个节点，最好的走法，8*8的价值矩阵（用来作为网络的走法概率输出）
+            next_node, best_move, move_prob = self.one_step()
+            
+            # 记录这一步的训练数据
+            states.append(self.root.board.state)  # 记录状态
+            Qs.append(move_prob)                  # 记录价值
+            player.append(self.root.board.current_player) # 记录当前玩家
+            
+            # 记录上一步棋的位置
+            tmp_move = np.zeros([self.root.board.h, self.root.board.w])
+            if(self.root.board.last_move != -1):
+                h_, w_ = self.root.board.move_to_hw(self.root.board.last_move)
+                tmp_move[h_, w_] = 1
             last_moves.append(tmp_move)
 
-            Q_ = np.zeros([node.board.h, node.board.w])
-            for move in node.board.moveable:
-                q = node.child[move].Q
-                Q_[node.board.move_to_hw(move)[0], node.board.move_to_hw(move)[1]] = q
-            Q_ = softmax(Q_)
-            Qs.append(Q_)
-            # 当前玩家与最终赢家
-            winners.append(winner)
+            # 树根节点向下移，丢弃之上的部分，之上部分的数据都已经保存好了
+            self.root = next_node
+            self.root.parent = None 
+        
+        # 收集每一步对应的胜率
+        winner = self.root.board.have_winer()[1]
+        for current_player in player:
+            if(current_player == winner):
+                winners.append(1)
+            else:
+                winners.append(-1)
 
-            if(node.parent == None):
-                break
+
+        # node = self.root
+        # while(True):
+        #     # 放在开始，最后结束的叶节点不计
+        #     node = node.parent
+        #     states.append(node.board.state)
+        #     player.append(node.board.current_player)
+            
+        #     tmp_move = np.zeros([node.board.h, node.board.w])
+        #     h_, w_ = node.board.move_to_hw(node.board.last_move)
+        #     tmp_move[h_,w_] = 1
+        #     last_moves.append(tmp_move)
+
+        #     Q_ = np.zeros([node.board.h, node.board.w])
+        #     for move in node.board.moveable:
+        #         q = node.child[move].n
+        #         Q_[node.board.move_to_hw(move)[0], node.board.move_to_hw(move)[1]] = q
+        #     Q_ = softmax(Q_)
+        #     Qs.append(Q_)
+        #     # 当前玩家与最终赢家
+        #     winners.append(winner)
+
+        #     if(node.parent == None):
+        #         break
 
         return (states, Qs, winners, player, last_moves)
+
+
+    def one_step(self):
+        '''计算根节点向下的胜率，并下一步棋'''
+        for i in range(self.n_playout):
+            self.playout()
+        best_move, node, move_prob = self.root.get_one_step_move()
+
+        # for m in self.root.board.moveable:
+        #     if(m != best_move):
+        #         self.root.child[m].child = {}
+        #         self.root.child[m].state = None
+        #         self.root.child[m].moveable = None
+        # self.root = node
+        next_node = node
+
+        return next_node, best_move, move_prob
+
+
+    def playout(self):
+        '''
+        一次模拟过程: 
+        移动到叶子节点，模拟下棋到结束，根据结果更新
+        '''
+        node = self.root
+        while(True):
+            if(node.child == {}):
+                break
+            move, node = node.get_best_move()
+        
+        # 模拟下棋到游戏结束
+        # 返回 leaf_value : 如果赢家与当前节点的玩家一样为1，不一样为-1 
+        end, winner = node.board.have_winer()
+
+        if(not end):
+            # winner = self.simulate_random(copy.deepcopy(node.board))
+            # node.update(winner)
+
+            # 算出概率 Q 来拓展
+            s = node.board.state.astype("float32")
+            player = node.board.current_player
+            s = s * player
+            last_move = np.zeros([node.board.h, node.board.w],dtype = "float32")
+            if(node.board.last_move != -1):
+                h_, w_ = node.board.move_to_hw(node.board.last_move)
+                last_move[h_,w_] = 1
+            
+            # 通过网络得到走法概率和胜率
+            q, v = self.model(np.stack([s, last_move, player * np.ones([8, 8],dtype="float32")], axis=0).transpose((1,2,0)).reshape([1,8,8,3]))
+            
+            # 拓展子节点，记录访问的先验概率
+            node.expand(q.numpy().reshape([node.board.h, node.board.w]))
+
+            # 根据网络输出的胜率来更新 蒙罗卡罗树节点，v表示最后当前玩家是否会获胜，乘以当前玩家后就是最终胜利的真实玩家（1 或 -1）
+            node.update(v * player)
+        else:
+            # mcts 树增长到游戏结束的节点, 更新后一局自我对战结束
+            node.update(winner)
+
 
     def human_play(self):
         '''与人对战，测试'''
@@ -137,55 +245,9 @@ class MCTS(object):
             self.root.board.show()
             
         print("end play !! ")
-
-    def one_step(self):
-        '''计算根节点向下的胜率，并下一步棋'''
-        for i in range(self.n_playout):
-            self.playout()
-        best_move, node = self.root.get_best_move()
-        for m in self.root.board.moveable:
-            if(m != best_move):
-                self.root.child[m].child = {}
-                self.root.child[m].state = None
-                self.root.child[m].moveable = None
-        self.root = node
-
-
-    def playout(self):
-        '''
-        一次模拟过程: 
-        移动到叶子节点，模拟下棋到结束，根据结果更新
-        '''
-        node = self.root
-        while(True):
-            if(node.child == {}):
-                break
-            move, node = node.get_best_move()
         
-        # 模拟下棋到游戏结束
-        # 返回 leaf_value : 如果赢家与当前节点的玩家一样为1，不一样为-1 
-        end, winner = node.board.have_winer()
-
-        if(not end):
-            winner = self.simulate(copy.deepcopy(node.board))
-            node.update(winner)
-
-            # 算出概率 Q 来拓展
-            s = node.board.state.astype("float32")
-            player = node.board.current_player
-            s = s * player
-            last_move = np.zeros([node.board.h, node.board.w],dtype = "float32")
-            h_, w_ = node.board.move_to_hw(node.board.last_move)
-            last_move[h_,w_] = 1
-            
-            # 添加数据， 转置状态矩阵增强数据
-            # q, v = self.model(np.stack([s, last_move, player * np.ones([8, 8],dtype="float32")], axis=2).reshape([1,8,8,3]))
-            q, v = self.model(np.stack([s, last_move, player * np.ones([8, 8],dtype="float32")], axis=0).transpose((1,2,0)).reshape([1,8,8,3]))
-            # 拓展子节点，记录访问的先验概率
-            node.expand(q.numpy().reshape([node.board.h, node.board.w]))
-        
-    def simulate(self, board):
-        '''模拟一次对局到结束'''
+    def simulate_random(self, board):
+        '''随机模拟一次对局到结束，用于纯蒙罗卡罗搜索，aphla-zero中不用'''
         while(True):
             move = board.moveable[np.random.randint(0, len(board.moveable), dtype='int')]
             board.move_no_copy(move)
@@ -203,10 +265,3 @@ def softmax(x):
 # mcts = MCTS()
 # mcts.human_play()
 
-
-# a = np.array([[1,2],[3,4]])
-# b = np.array([[5,6],[7,8]])
-# d = np.array([[0,0],[0,0]])
-# c = np.stack([a,b,d], axis=2)
-# print(c.shape)
-# print(c)

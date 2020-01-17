@@ -19,12 +19,12 @@ for epcho in range(1):
     dataloader.self_play(model)
     data, label_q, label_v = dataloader.get_data()
     
-    for repeat in range(5):
-        # 进行训练
-        for i in range(len(data)):
-            x = data[i].astype("float32")
-            q = label_q[i].astype("float32")
-            w = label_v[i]
+    if(data != []):
+        for repeat in range(5):
+            # 进行训练
+            x = data.astype("float32")
+            q = label_q.astype("float32")
+            w = label_v
 
             with tf.GradientTape() as tape:
                 Q_pred, v_pred = model(x)

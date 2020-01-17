@@ -3,6 +3,7 @@
 '''
 
 import numpy as np 
+import random
 import tensorflow as tf 
 import tensorflow.keras as keras
 import tensorflow.keras.layers as layers
@@ -50,7 +51,11 @@ class network(keras.Model):
 
         return p, v
 
+
+
 class DataLoader(object):
+    ''' 数据加载处理，收集数据并处理成 batch 形式
+    '''
     def __init__(self):
         self.states = []
         self.Qs = []
@@ -89,7 +94,7 @@ class DataLoader(object):
             # self.input_data[self.count] = np.stack([s, last_move, player * np.ones([8, 8])], axis=2).reshape([8,8,3])
             self.input_data[self.count] = np.stack([s, last_move, player * np.ones([8, 8],dtype="float32")], axis=0).transpose((1,2,0)).reshape([8,8,3])
             self.output_q[self.count] = q.reshape([64])
-            self.output_v[self.count] = w * player
+            self.output_v[self.count] = w
 
             self.count += 1
             if(self.count == self.max_data):
@@ -98,28 +103,26 @@ class DataLoader(object):
 
             self.input_data[self.count] = np.stack([s.T, last_move.T, player * np.ones([8, 8],dtype="float32")], axis=0).transpose((1,2,0)).reshape([8,8,3])
             self.output_q[self.count] = q.T.reshape([64])
-            self.output_v[self.count] = w * player
+            self.output_v[self.count] = w
 
             self.count += 1
             if(self.count == self.max_data):
                 self.count = 0
                 self.flag_full = True
 
-    def get_data(self, batch_size=8):
+    def get_data(self, batch_size=256):
         '''返回训练batch数据'''
         data = []   
         label_q = []
         label_v = []
         if(self.flag_full):
-            
-            for i in range(self.max_data // batch_size):
-                data.append(np.stack(self.input_data[i*batch_size : (i+1)*batch_size], axis=0))
-                label_q.append(np.stack(self.output_q[i*batch_size: (i+1)*batch_size], axis=0).reshape([batch_size, -1]))
-                label_v.append(np.stack(self.output_v[i*batch_size: (i+1)*batch_size], axis=0).reshape([-1,1]))
+            data.append(np.stack(random.sample(self.input_data, batch_size), axis=0))
+            label_q.append(np.stack(random.sample(self.output_q, batch_size), axis=0).reshape([batch_size, -1]))
+            label_v.append(np.stack(random.sample(self.output_v, batch_size), axis=0).reshape([-1,1]))
             return data, label_q, label_v
         else:
-            for i in range(self.count // batch_size):
-                data.append(np.stack(self.input_data[i*batch_size : (i+1)*batch_size], axis=0))
-                label_q.append(np.stack(self.output_q[i*batch_size: (i+1)*batch_size], axis=0).reshape([batch_size, -1]))
-                label_v.append(np.stack(self.output_v[i*batch_size: (i+1)*batch_size], axis=0).reshape([-1, 1]))
+            if(self.count > batch_size):
+                data.append(np.stack(random.sample(self.input_data[:self.count], batch_size), axis=0))
+                label_q.append(np.stack(random.sample(self.output_q[:self.count], batch_size), axis=0).reshape([batch_size, -1]))
+                label_v.append(np.stack(random.sample(self.output_v[:self.count], batch_size), axis=0).reshape([-1,1]))
             return data, label_q, label_v
