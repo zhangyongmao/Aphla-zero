@@ -110,19 +110,17 @@ class DataLoader(object):
                 self.count = 0
                 self.flag_full = True
 
-    def get_data(self, batch_size=256):
+    def get_data(self, batch_size=16):
         '''返回训练batch数据'''
-        data = []   
-        label_q = []
-        label_v = []
         if(self.flag_full):
-            data.append(np.stack(random.sample(self.input_data, batch_size), axis=0))
-            label_q.append(np.stack(random.sample(self.output_q, batch_size), axis=0).reshape([batch_size, -1]))
-            label_v.append(np.stack(random.sample(self.output_v, batch_size), axis=0).reshape([-1,1]))
-            return data, label_q, label_v
+            data = np.stack(random.sample(self.input_data, batch_size), axis=0)
+            label_q = np.stack(random.sample(self.output_q, batch_size), axis=0).reshape([batch_size, -1])
+            label_v = np.stack(random.sample(self.output_v, batch_size), axis=0).reshape([-1,1])
+            return data, label_q, label_v, True
         else:
             if(self.count > batch_size):
-                data.append(np.stack(random.sample(self.input_data[:self.count], batch_size), axis=0))
-                label_q.append(np.stack(random.sample(self.output_q[:self.count], batch_size), axis=0).reshape([batch_size, -1]))
-                label_v.append(np.stack(random.sample(self.output_v[:self.count], batch_size), axis=0).reshape([-1,1]))
-            return data, label_q, label_v
+                data = np.stack(random.sample(self.input_data[:self.count], batch_size), axis=0)
+                label_q = np.stack(random.sample(self.output_q[:self.count], batch_size), axis=0).reshape([batch_size, -1])
+                label_v = np.stack(random.sample(self.output_v[:self.count], batch_size), axis=0).reshape([-1,1])
+                return data, label_q, label_v, True
+            return None,None, None, False
