@@ -16,27 +16,27 @@ os.environ['CUDA_VISIBLE_DEVICES'] = ''
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 
 class network(keras.Model):
-    def __init__(self):
+    def __init__(self, l2_param = 1e-4):
         super(network, self).__init__(self)
-        self.conv1 = tf.keras.layers.Conv2D(filters=32,kernel_size=(3,3),padding='same',kernel_regularizer=tf.keras.regularizers.l2(1e-4))
-        self.conv2 = tf.keras.layers.Conv2D(filters=64,kernel_size=(3,3),padding='same',kernel_regularizer=tf.keras.regularizers.l2(1e-4))
-        self.conv3 = tf.keras.layers.Conv2D(filters=128,kernel_size=(3,3),padding='same',kernel_regularizer=tf.keras.regularizers.l2(1e-4))
+        self.conv1 = tf.keras.layers.Conv2D(filters=32,kernel_size=(3,3),padding='same',kernel_regularizer=tf.keras.regularizers.l2(l2_param))
+        self.conv2 = tf.keras.layers.Conv2D(filters=64,kernel_size=(3,3),padding='same',kernel_regularizer=tf.keras.regularizers.l2(l2_param))
+        self.conv3 = tf.keras.layers.Conv2D(filters=128,kernel_size=(3,3),padding='same',kernel_regularizer=tf.keras.regularizers.l2(l2_param))
         
         # 预测走法网络部分
-        self.conv4 = tf.keras.layers.Conv2D(filters=4,kernel_size=(1,1),kernel_regularizer=tf.keras.regularizers.l2(1e-4))
+        self.conv4 = tf.keras.layers.Conv2D(filters=4,kernel_size=(1,1),kernel_regularizer=tf.keras.regularizers.l2(l2_param))
         self.flatten = tf.keras.layers.Flatten()
-        self.dnn = tf.keras.layers.Dense(64, activation="tanh", kernel_regularizer=tf.keras.regularizers.l2(1e-4))
+        self.dnn = tf.keras.layers.Dense(16, activation="tanh", kernel_regularizer=tf.keras.regularizers.l2(l2_param))
 
         # 预测最终胜率部分
-        self.conv5 = tf.keras.layers.Conv2D(filters=2,kernel_size=(1,1),kernel_regularizer=tf.keras.regularizers.l2(1e-4))
+        self.conv5 = tf.keras.layers.Conv2D(filters=2,kernel_size=(1,1),kernel_regularizer=tf.keras.regularizers.l2(l2_param))
         self.flatten2 = layers.Flatten()
-        self.dnn2 = layers.Dense(64, kernel_regularizer=keras.regularizers.l2(1e-4))
-        self.dnn3 = layers.Dense(1, activation="tanh", kernel_regularizer=keras.regularizers.l2(1e-4))
+        self.dnn2 = layers.Dense(16, kernel_regularizer=keras.regularizers.l2(l2_param))
+        self.dnn3 = layers.Dense(1, activation="tanh", kernel_regularizer=keras.regularizers.l2(l2_param))
 
     def call(self, x):
         x = self.conv1(x)
-        x = self.conv2(x)
-        x = self.conv3(x)
+        # x = self.conv2(x)
+        # x = self.conv3(x)
 
         # 预测走法部分
         p = self.conv4(x)
@@ -56,7 +56,7 @@ class network(keras.Model):
 class DataLoader(object):
     ''' 数据加载处理，收集数据并处理成 batch 形式
     '''
-    def __init__(self):
+    def __init__(self, max_data = 1024):
         self.states = []
         self.Qs = []
         self.win = []
@@ -64,7 +64,7 @@ class DataLoader(object):
         self.last_move = []
 
         # 处理好的数据
-        self.max_data = 10000
+        self.max_data = max_data
         self.input_data = [None for i in range(self.max_data)]
         self.output_q = [None for i in range(self.max_data)]
         self.output_v = [None for i in range(self.max_data)]
@@ -73,12 +73,12 @@ class DataLoader(object):
         self.flag_full = False
         
 
-    def self_play(self, model):
+    def self_play(self, model, use_network = False):
         self.play_count += 1
         print("第 ", self.play_count, " 局自我练习 ！")
         
         # 下棋并记录结果
-        mcts = MCTS()
+        mcts = MCTS(use_network)
         self.states, self.Qs, self.win, self.player, self.last_move = mcts.self_play(model)
         
         # 处理数据
@@ -92,8 +92,8 @@ class DataLoader(object):
             
             # 添加数据， 转置状态矩阵增强数据
             # self.input_data[self.count] = np.stack([s, last_move, player * np.ones([8, 8])], axis=2).reshape([8,8,3])
-            self.input_data[self.count] = np.stack([s, last_move, player * np.ones([8, 8],dtype="float32")], axis=0).transpose((1,2,0)).reshape([8,8,3])
-            self.output_q[self.count] = q.reshape([64])
+            self.input_data[self.count] = np.stack([s, last_move, player * np.ones([4, 4],dtype="float32")], axis=0).transpose((1,2,0)).reshape([4,4,3])
+            self.output_q[self.count] = q.reshape([16])
             self.output_v[self.count] = w
 
             self.count += 1
@@ -101,8 +101,8 @@ class DataLoader(object):
                 self.count = 0
                 self.flag_full = True
 
-            self.input_data[self.count] = np.stack([s.T, last_move.T, player * np.ones([8, 8],dtype="float32")], axis=0).transpose((1,2,0)).reshape([8,8,3])
-            self.output_q[self.count] = q.T.reshape([64])
+            self.input_data[self.count] = np.stack([s.T, last_move.T, player * np.ones([4, 4],dtype="float32")], axis=0).transpose((1,2,0)).reshape([4,4,3])
+            self.output_q[self.count] = q.T.reshape([16])
             self.output_v[self.count] = w
 
             self.count += 1
@@ -124,3 +124,11 @@ class DataLoader(object):
                 label_v = np.stack(random.sample(self.output_v[:self.count], batch_size), axis=0).reshape([-1,1])
                 return data, label_q, label_v, True
             return None,None, None, False
+
+
+model = network()
+model.load_weights("model-4_4-init")
+
+
+mcts = MCTS()
+mcts.human_play(model=model, use_model=True)

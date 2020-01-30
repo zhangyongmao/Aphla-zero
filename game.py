@@ -9,10 +9,10 @@ import copy
 class Board(object):
     '''棋盘结构，'''
 
-    def __init__(self, h=8, w=8 ):
+    def __init__(self, h=4, w=4 ):
         self.h = h      # 行数
         self.w = w      # 列数
-        self.n_line = 5 # 连续的棋子数算赢
+        self.n_line = 3 # 连续的棋子数算赢
         self.player = [1, -1]   # 玩家，默认1先手
         self.current_player = 1 # 当前棋手，默认1先手
         self.state = np.zeros([self.h, self.w])  # 棋盘矩阵
@@ -108,12 +108,12 @@ class Board(object):
         '''方便人机对战'''
         print("当前玩家：",self.current_player)
         print('*    ',end="")
-        for i in range(8):
+        for i in range(4):
             print(i,'  ',end="")
         print("")
-        for i in range(8):
+        for i in range(4):
             print(i,'   ',end="")
-            for j in range(8):
+            for j in range(4):
                 if(self.state[i,j] == 0.):
                     print('_   ',end="")
                 else:
