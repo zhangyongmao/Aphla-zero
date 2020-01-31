@@ -25,7 +25,7 @@ class network(keras.Model):
         # 预测走法网络部分
         self.conv4 = tf.keras.layers.Conv2D(filters=4,kernel_size=(1,1),kernel_regularizer=tf.keras.regularizers.l2(l2_param))
         self.flatten = tf.keras.layers.Flatten()
-        self.dnn = tf.keras.layers.Dense(16, activation="tanh", kernel_regularizer=tf.keras.regularizers.l2(l2_param))
+        self.dnn = tf.keras.layers.Dense(16, activation="softmax", kernel_regularizer=tf.keras.regularizers.l2(l2_param))
 
         # 预测最终胜率部分
         self.conv5 = tf.keras.layers.Conv2D(filters=2,kernel_size=(1,1),kernel_regularizer=tf.keras.regularizers.l2(l2_param))
@@ -90,9 +90,10 @@ class DataLoader(object):
             s = s * player
             last_move = self.last_move[i]
             
+            
             # 添加数据， 转置状态矩阵增强数据
             # self.input_data[self.count] = np.stack([s, last_move, player * np.ones([8, 8])], axis=2).reshape([8,8,3])
-            self.input_data[self.count] = np.stack([s, last_move, player * np.ones([4, 4],dtype="float32")], axis=0).transpose((1,2,0)).reshape([4,4,3])
+            self.input_data[self.count] = np.stack([np.where(s==1,1,0), np.where(s==-1,1,0), last_move, player * np.ones([4, 4],dtype="float32")], axis=0).transpose((1,2,0)).reshape([4,4,4])
             self.output_q[self.count] = q.reshape([16])
             self.output_v[self.count] = w
 
@@ -101,7 +102,7 @@ class DataLoader(object):
                 self.count = 0
                 self.flag_full = True
 
-            self.input_data[self.count] = np.stack([s.T, last_move.T, player * np.ones([4, 4],dtype="float32")], axis=0).transpose((1,2,0)).reshape([4,4,3])
+            self.input_data[self.count] = np.stack([np.where(s.T==1,1,0), np.where(s.T==-1,1,0), last_move.T, player * np.ones([4, 4],dtype="float32")], axis=0).transpose((1,2,0)).reshape([4,4,4])
             self.output_q[self.count] = q.T.reshape([16])
             self.output_v[self.count] = w
 
@@ -127,8 +128,8 @@ class DataLoader(object):
 
 
 model = network()
-model.load_weights("model-4_4-init")
+# model.load_weights("model-4_4-init")
 
 
-mcts = MCTS()
+mcts = MCTS(n_playout=10)
 mcts.human_play(model=model, use_model=True)

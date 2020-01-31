@@ -7,6 +7,7 @@ import numpy as np
 from game import Board
 import copy
 
+
 class TreeNode(object):
     def __init__(self, parent=None, board = None, p = None):
         self.parent =  parent
@@ -54,7 +55,7 @@ class TreeNode(object):
         move, visit = zip(* move_visit)
         move_prob = softmax(1.0 * np.log(np.array(visit) + 1e-10))
         result_move = np.random.choice(move, 
-                    p=0.8 * move_prob + 0.2 * np.random.dirichlet(0.3*np.ones(len(visit))))
+                    p= 0.8 * move_prob + 0.2 * np.random.dirichlet(0.3*np.ones(len(visit))))
         
         # 计算 Q 矩阵作为预测的走法概率label
         move_Q = np.zeros([self.board.h, self.board.w])
@@ -94,7 +95,7 @@ class MCTS(object):
         self.n_playout = n_playout
         self.root = TreeNode()
 
-    def self_play(self, model = None, use_network = True):
+    def self_play(self, model = None):
         '''自我对局到最后结束，用来收集数据训练网络'''
         states = []
         Qs = []
@@ -102,7 +103,6 @@ class MCTS(object):
         player = []
         last_moves = []
         self.model = model
-        self.use_network = use_network
 
         # 进行一局模拟对战到结束
         while(True):
@@ -187,13 +187,13 @@ class MCTS(object):
                     last_move[h_,w_] = 1
                 
                 # 通过网络得到走法概率和胜率
-                q, v = self.model(np.stack([s, last_move, player * np.ones([4, 4],dtype="float32")], axis=0).transpose((1,2,0)).reshape([1,4,4,3]))
+                q, v = self.model(np.stack([np.where(s==1,1,0), np.where(s==-1,1,0), last_move, player * np.ones([4, 4],dtype="float32")], axis=0).transpose((1,2,0)).reshape([1,4,4,4]).astype("float32"))
                 
                 # 拓展子节点，记录访问的先验概率
                 node.expand(q.numpy().reshape([node.board.h, node.board.w]))
 
                 # 根据网络输出的胜率来更新 蒙罗卡罗树节点，v表示最后当前玩家是否会获胜，乘以当前玩家后就是最终胜利的真实玩家（1 或 -1）
-                node.update(v * player)
+                node.update(v.numpy()[0][0] * player)
             
         else:
             # mcts 树增长到游戏结束的节点, 更新后一局自我对战结束
@@ -245,9 +245,6 @@ class MCTS(object):
 def softmax(x):
     x -= np.max(x)
     return np.exp(x) / np.sum(np.exp(x))    
-
-
 # mcts = MCTS()
 # mcts.human_play()
-
 
