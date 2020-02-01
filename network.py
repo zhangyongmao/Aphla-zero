@@ -18,25 +18,24 @@ os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 class network(keras.Model):
     def __init__(self, l2_param = 1e-4):
         super(network, self).__init__(self)
-        self.conv1 = tf.keras.layers.Conv2D(filters=32,kernel_size=(3,3),padding='same',kernel_regularizer=tf.keras.regularizers.l2(l2_param))
-        self.conv2 = tf.keras.layers.Conv2D(filters=64,kernel_size=(3,3),padding='same',kernel_regularizer=tf.keras.regularizers.l2(l2_param))
-        self.conv3 = tf.keras.layers.Conv2D(filters=128,kernel_size=(3,3),padding='same',kernel_regularizer=tf.keras.regularizers.l2(l2_param))
+        self.conv1 = tf.keras.layers.Conv2D(filters=32,kernel_size=(3,3),activation="relu", padding='same',kernel_regularizer=tf.keras.regularizers.l2(l2_param))
+        self.conv2 = tf.keras.layers.Conv2D(filters=64,kernel_size=(3,3),activation="relu",padding='same',kernel_regularizer=tf.keras.regularizers.l2(l2_param))
+        # self.conv3 = tf.keras.layers.Conv2D(filters=128,kernel_size=(3,3),padding='same',kernel_regularizer=tf.keras.regularizers.l2(l2_param))
         
         # 预测走法网络部分
-        self.conv4 = tf.keras.layers.Conv2D(filters=4,kernel_size=(1,1),kernel_regularizer=tf.keras.regularizers.l2(l2_param))
+        self.conv4 = tf.keras.layers.Conv2D(filters=4,kernel_size=(1,1),activation="relu",kernel_regularizer=tf.keras.regularizers.l2(l2_param))
         self.flatten = tf.keras.layers.Flatten()
         self.dnn = tf.keras.layers.Dense(16, activation="softmax", kernel_regularizer=tf.keras.regularizers.l2(l2_param))
 
         # 预测最终胜率部分
-        self.conv5 = tf.keras.layers.Conv2D(filters=2,kernel_size=(1,1),kernel_regularizer=tf.keras.regularizers.l2(l2_param))
+        self.conv5 = tf.keras.layers.Conv2D(filters=2,kernel_size=(1,1),activation="relu",kernel_regularizer=tf.keras.regularizers.l2(l2_param))
         self.flatten2 = layers.Flatten()
         self.dnn2 = layers.Dense(16, kernel_regularizer=keras.regularizers.l2(l2_param))
         self.dnn3 = layers.Dense(1, activation="tanh", kernel_regularizer=keras.regularizers.l2(l2_param))
 
     def call(self, x):
         x = self.conv1(x)
-        # x = self.conv2(x)
-        # x = self.conv3(x)
+        x = self.conv2(x)
 
         # 预测走法部分
         p = self.conv4(x)
@@ -73,45 +72,51 @@ class DataLoader(object):
         self.flag_full = False
         
 
-    def self_play(self, model, use_network = False):
+    def self_play(self, model, use_model = True):
         self.play_count += 1
         print("第 ", self.play_count, " 局自我练习 ！")
         
         # 下棋并记录结果
-        mcts = MCTS(use_network)
+        mcts = MCTS(use_model, n_playout = 400)
         self.states, self.Qs, self.win, self.player, self.last_move = mcts.self_play(model)
         
         # 处理数据
         for i in range(len(self.states)):
-            s = self.states[i]
-            q = self.Qs[i]
-            w = self.win[i]
+            s_ = self.states[i]
+            q_ = self.Qs[i]
+            w_ = self.win[i]
             player = self.player[i]
-            s = s * player
-            last_move = self.last_move[i]
+            s_ = s_ * player   # 1 代表当前棋手的棋
+            last_move_ = self.last_move[i]
             
-            
-            # 添加数据， 转置状态矩阵增强数据
-            # self.input_data[self.count] = np.stack([s, last_move, player * np.ones([8, 8])], axis=2).reshape([8,8,3])
-            self.input_data[self.count] = np.stack([np.where(s==1,1,0), np.where(s==-1,1,0), last_move, player * np.ones([4, 4],dtype="float32")], axis=0).transpose((1,2,0)).reshape([4,4,4])
-            self.output_q[self.count] = q.reshape([16])
-            self.output_v[self.count] = w
+            for r in [1,2,3,4]:
+                # 旋转增加数据                
+                s = np.rot90(s_, r)
+                last_move = np.rot90(last_move_, r)
+                q = np.rot90(q_, r)
+                w = w_
 
-            self.count += 1
-            if(self.count == self.max_data):
-                self.count = 0
-                self.flag_full = True
+                # 添加数据， 转置状态矩阵增强数据
+                # self.input_data[self.count] = np.stack([s, last_move, player * np.ones([8, 8])], axis=2).reshape([8,8,3])
+                self.input_data[self.count] = np.stack([np.where(s==1,1,0), np.where(s==-1,1,0), last_move, player * np.ones([4, 4],dtype="float32")], axis=0).transpose((1,2,0)).reshape([4,4,4])
+                self.output_q[self.count] = q.reshape([16])
+                self.output_v[self.count] = w
 
-            self.input_data[self.count] = np.stack([np.where(s.T==1,1,0), np.where(s.T==-1,1,0), last_move.T, player * np.ones([4, 4],dtype="float32")], axis=0).transpose((1,2,0)).reshape([4,4,4])
-            self.output_q[self.count] = q.T.reshape([16])
-            self.output_v[self.count] = w
+                self.count += 1
+                if(self.count == self.max_data):
+                    self.count = 0
+                    self.flag_full = True
 
-            self.count += 1
-            if(self.count == self.max_data):
-                self.count = 0
-                self.flag_full = True
+                self.input_data[self.count] = np.stack([np.where(s.T==1,1,0), np.where(s.T==-1,1,0), last_move.T, player * np.ones([4, 4],dtype="float32")], axis=0).transpose((1,2,0)).reshape([4,4,4])
+                self.output_q[self.count] = q.T.reshape([16])
+                self.output_v[self.count] = w
 
-    def get_data(self, batch_size=16):
+                self.count += 1
+                if(self.count == self.max_data):
+                    self.count = 0
+                    self.flag_full = True
+
+    def get_data(self, batch_size=128):
         '''返回训练batch数据'''
         if(self.flag_full):
             data = np.stack(random.sample(self.input_data, batch_size), axis=0)
@@ -127,9 +132,6 @@ class DataLoader(object):
             return None,None, None, False
 
 
-model = network()
-# model.load_weights("model-4_4-init")
-
-
-mcts = MCTS(n_playout=10)
-mcts.human_play(model=model, use_model=True)
+# model = network()
+# mcts = MCTS(n_playout=10)
+# mcts.human_play(model=model, use_model=True)

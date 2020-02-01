@@ -134,6 +134,3 @@ class Board(object):
 #     board = board.move(board.hw_to_move(h,w))
 #     if(board.have_winer()[0]):
 #         break
-
-# t = np.array([1,0,-1])
-# print(np.where(t==1, 1, 0))

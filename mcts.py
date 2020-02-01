@@ -24,7 +24,6 @@ class TreeNode(object):
             else:
                 self.P = p
 
-        # self.current_player = 1  # 当前玩家
         if(board == None):
             self.board = Board()  # 当前棋盘
         else:
@@ -90,7 +89,7 @@ class TreeNode(object):
 class MCTS(object):
     '''进行蒙罗卡罗搜索的部分'''
 
-    def __init__(self, use_network = False, n_playout = 2000):
+    def __init__(self, use_network = False, n_playout = 400):
         self.use_network = use_network  # 是否使用网络来模拟一次下棋的胜负结果，False的话用随机下棋来模拟结果，True用network预测结果
         self.n_playout = n_playout
         self.root = TreeNode()
@@ -244,7 +243,10 @@ class MCTS(object):
     
 def softmax(x):
     x -= np.max(x)
-    return np.exp(x) / np.sum(np.exp(x))    
+    return np.exp(x) / np.sum(np.exp(x))   
+    
+     
 # mcts = MCTS()
 # mcts.human_play()
+
 
