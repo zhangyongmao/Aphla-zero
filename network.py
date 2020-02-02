@@ -20,7 +20,7 @@ class network(keras.Model):
         super(network, self).__init__(self)
         self.conv1 = tf.keras.layers.Conv2D(filters=32,kernel_size=(3,3),activation="relu", padding='same',kernel_regularizer=tf.keras.regularizers.l2(l2_param))
         self.conv2 = tf.keras.layers.Conv2D(filters=64,kernel_size=(3,3),activation="relu",padding='same',kernel_regularizer=tf.keras.regularizers.l2(l2_param))
-        # self.conv3 = tf.keras.layers.Conv2D(filters=128,kernel_size=(3,3),padding='same',kernel_regularizer=tf.keras.regularizers.l2(l2_param))
+        self.conv3 = tf.keras.layers.Conv2D(filters=128,kernel_size=(3,3),padding='same',kernel_regularizer=tf.keras.regularizers.l2(l2_param))
         
         # 预测走法网络部分
         self.conv4 = tf.keras.layers.Conv2D(filters=4,kernel_size=(1,1),activation="relu",kernel_regularizer=tf.keras.regularizers.l2(l2_param))
@@ -36,6 +36,7 @@ class network(keras.Model):
     def call(self, x):
         x = self.conv1(x)
         x = self.conv2(x)
+        x = self.conv3(x)
 
         # 预测走法部分
         p = self.conv4(x)
@@ -132,6 +133,7 @@ class DataLoader(object):
             return None,None, None, False
 
 
-# model = network()
-# mcts = MCTS(n_playout=10)
-# mcts.human_play(model=model, use_model=True)
+model = network()
+model.load_weights("model-4-4-3-1000")
+mcts = MCTS(n_playout=2000)
+mcts.human_play(model=model, use_model=True)

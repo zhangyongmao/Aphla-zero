@@ -12,7 +12,7 @@ optim = keras.optimizers.Adam(learning_rate=2e-3)
 dataloader = DataLoader()
 
 # 继续训练
-model.load_weights("model")
+model.load_weights("model-4-4-3-3000")
 
 for epcho in range(10):
     # 进行一次自我对战，收集处理数据

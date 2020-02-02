@@ -45,7 +45,7 @@ class TreeNode(object):
         '''
         return max(self.child.items(), key=lambda node: node[1].get_value())
 
-    def get_one_step_move(self):
+    def get_one_step_move(self, training = True):
         '''
         用来进行n次模拟后选出当前局面最终要走哪一步
         '''
@@ -53,9 +53,12 @@ class TreeNode(object):
                     for move, child_node in self.child.items()]
         move, visit = zip(* move_visit)
         move_prob = softmax(1.0 * np.log(np.array(visit) + 1e-10))
-        result_move = np.random.choice(move, 
-                    p= 0.8 * move_prob + 0.2 * np.random.dirichlet(0.3*np.ones(len(visit))))
-        
+        if(training):
+            result_move = np.random.choice(move, 
+                        p= 0.8 * move_prob + 0.2 * np.random.dirichlet(0.3*np.ones(len(visit))))
+        else:
+            result_move = np.random.choice(move, p= move_prob)
+
         # 计算 Q 矩阵作为预测的走法概率label
         move_Q = np.zeros([self.board.h, self.board.w])
         for i in range(len(move)):
@@ -93,6 +96,7 @@ class MCTS(object):
         self.use_network = use_network  # 是否使用网络来模拟一次下棋的胜负结果，False的话用随机下棋来模拟结果，True用network预测结果
         self.n_playout = n_playout
         self.root = TreeNode()
+        self.training = True
 
     def self_play(self, model = None):
         '''自我对局到最后结束，用来收集数据训练网络'''
@@ -102,6 +106,7 @@ class MCTS(object):
         player = []
         last_moves = []
         self.model = model
+        self.training = True
 
         # 进行一局模拟对战到结束
         while(True):
@@ -146,7 +151,7 @@ class MCTS(object):
         '''计算根节点向下的胜率，并下一步棋'''
         for i in range(self.n_playout):
             self.playout()
-        best_move, node, move_prob = self.root.get_one_step_move()
+        best_move, node, move_prob = self.root.get_one_step_move(self.training)
         next_node = node
 
         return next_node, best_move, move_prob
@@ -205,6 +210,7 @@ class MCTS(object):
         self.model = model
         self.use_network = use_model
         self.n_playout = n_playout
+        self.training = False
         self.root.board.show()
         while(True):
             if(self.root.board.have_winer()[0]):
@@ -243,7 +249,7 @@ class MCTS(object):
     
 def softmax(x):
     x -= np.max(x)
-    return np.exp(x) / np.sum(np.exp(x))   
+    return np.exp(x) / np.sum(np.exp(x))
     
      
 # mcts = MCTS()
