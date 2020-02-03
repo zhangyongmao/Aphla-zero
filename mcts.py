@@ -58,6 +58,7 @@ class TreeNode(object):
                         p= 0.8 * move_prob + 0.2 * np.random.dirichlet(0.3*np.ones(len(visit))))
         else:
             result_move = np.random.choice(move, p= move_prob)
+            result_move = move[np.argmax(move_prob)]
 
         # 计算 Q 矩阵作为预测的走法概率label
         move_Q = np.zeros([self.board.h, self.board.w])
@@ -251,8 +252,5 @@ def softmax(x):
     x -= np.max(x)
     return np.exp(x) / np.sum(np.exp(x))
     
-     
-# mcts = MCTS()
-# mcts.human_play()
 
 

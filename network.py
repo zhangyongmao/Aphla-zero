@@ -133,7 +133,7 @@ class DataLoader(object):
             return None,None, None, False
 
 
-model = network()
-model.load_weights("model-4-4-3-1000")
-mcts = MCTS(n_playout=2000)
-mcts.human_play(model=model, use_model=True)
+# model = network()
+# model.load_weights("model-3cnn-3000")
+# mcts = MCTS(n_playout=2000)
+# mcts.human_play(model=model, use_model=True)

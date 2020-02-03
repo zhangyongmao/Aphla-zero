@@ -123,14 +123,3 @@ class Board(object):
                         print('0   ',end="")
             print("")
             print("")
-
-# board = Board()
-# while(True):
-#     print("\r ", board.state)
-#     i = input()
-#     p = i.split(" ")
-#     h = int(p[0])
-#     w = int(p[1])
-#     board = board.move(board.hw_to_move(h,w))
-#     if(board.have_winer()[0]):
-#         break
